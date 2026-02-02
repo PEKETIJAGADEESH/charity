@@ -1,19 +1,21 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = "prasad67/maven-web-app"
+    tools {
+        maven 'maven'
+        jdk 'java11'
     }
 
     stages {
 
         stage('Checkout Code') {
             steps {
-                checkout scm
+                git branch: 'master',
+                    url: 'https://github.com/PEKETIJAGADEESH/charity.git'
             }
         }
 
-        stage('Build WAR') {
+        stage('Build WAR using Maven') {
             steps {
                 sh 'mvn clean package'
             }
@@ -22,31 +24,28 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                  docker build -t $IMAGE_NAME:${BUILD_NUMBER} .
+                docker rm -f charity-container || true
+                docker rmi charity-app || true
+                docker build -t charity-app .
                 '''
             }
         }
 
-        stage('Login to Docker Hub') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Push Image to Docker Hub') {
+        stage('Run Docker Container') {
             steps {
                 sh '''
-                  docker push $IMAGE_NAME:${BUILD_NUMBER}
+                docker run -d -p 8085:8080 --name charity-container charity-app
                 '''
             }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Application deployed successfully using Jenkins Pipeline!'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs.'
         }
     }
 }
